@@ -1,0 +1,216 @@
+----------GUIA 3
+
+--------EJ1
+CREATE TABLE capacitacion(
+	rutvendedor VARCHAR2(10) NOT NULL,
+	codcurso NUMBER NOT NULL,
+	cant_horas NUMBER NOT NULL,
+	fecha_desde DATE,
+	fecha_hasta DATE,
+	estado_aprob VARCHAR2(2) NOT NULL
+);
+
+VARIABLE b_cant_horas NUMBER
+VARIABLE b_estado_aprob VARCHAR2
+
+DECLARE
+	
+BEGIN
+	:b_estado_aprob='PR';
+	FOR x IN(SELECT rutvendedor FROM vendedor)LOOP
+	    FOR y IN 1..6 LOOP
+		
+		IF y=1 THEN
+		     :b_cant_horas:=15;
+		ELSIF  y=2 THEN
+		     :b_cant_horas:=25;
+		ELSIF y= 3 OR y=4 THEN
+		     :b_cant_horas:=20;
+		ELSIF y=5 THEN
+		     :b_cant_horas:=18;
+		ELSE
+		     :b_cant_horas:=22;
+		END IF;
+		
+		INSERT INTO capacitacion VALUES(x.rutvendedor, y, :b_cant_horas, null, null, :b_estado_aprob);
+
+	    END LOOP;
+	END LOOP;
+END;
+
+--------EJ2
+
+CREATE TABLE cliente_gestion(
+	id_cliente NUMBER(6) PRIMARY KEY,
+	rutcliente VARCHAR2(10) NOT NULL,
+	nombre VARCHAR2(30) NOT NULL,
+	direccion VARCHAR2(95) NOT NULL,
+	credito NUMBER(8) NOT NULL,
+	saldo NUMBER(8) NOT NULL,
+	comportamiento_cliente VARCHAR2(50) NOT NULL
+
+);
+
+CREATE SEQUENCE seq_id_cliente
+START WITH 1
+INCREMENT BY 1;
+
+SELECT rutcliente, nombre, direccion || ' ' || co.descripcion|| ' ' || ci.descripcion,
+       credito, saldo, credito-saldo
+FROM cliente c
+LEFT OUTER JOIN comuna co
+	ON c.codcomuna=co.codcomuna
+LEFT OUTER JOIN ciudad ci
+	ON co.codciudad=ci,codciudad;
+
+
+DECLARE
+	v_comportamiento VARCHAR2(50);
+
+BEGIN
+	FOR x IN(SELECT rutcliente, nombre, direccion || ' ' || co.descripcion|| ' ' || ci.descripcion AS "DIRECCION",
+       			credito, saldo, credito-saldo AS "COMPORTAMIENTO"
+		FROM cliente c
+		LEFT OUTER JOIN comuna co
+			ON c.codcomuna=co.codcomuna
+		LEFT OUTER JOIN ciudad ci
+			ON co.codciudad=ci,codciudad;) LOOP
+
+	    IF x."COMPORTAMIENTO"<=500000 THEN
+		v_comportamiento='Cliente realiza muchas compras';
+	    ELSIF x."COMPORTAMIENTO" BETWEEN 501000 AND 1000000 THEN
+		v_comportamiento='Cliente Medio respecto a compras';
+	    ELSE
+		v_comportamiendo='Cliente no compra, candidato a campaña marketing';
+	    END IF;
+
+	    INSERT INTO cliente_gestion VALUES(seq_id_cliente.NEXTVAL,
+						x.rutcliente, x.nombre,
+						x."DIRECCION", x.credito
+						x.saldo, v_comportamiento);
+	
+	END LOOP
+
+END;
+
+---------EJ3
+CREATE TABLE resumen_ventas_vendedor(
+	     rutvendedor VARCHAR2(10) NOT NULL,
+	     mes_anno VARCHAR2(7) NOT NULL,
+	     tipo_documento VARCHAR2(3) NOT NULL,
+	     cant_total_documentos NUMBER NOT NULL,
+	     monto_neto_total NUMBER NOT NULL,
+	     monto_iva_total NUMBER NOT NULL,
+	     monto_total NUMBER NOT NULL,
+             comision NUMBER NOT NULL,
+	     total_comision NUMBER NOT NULL,
+	     bono_meta NUMBER NOT NULL,
+	     total_pago_mes NUMBER NOT NULL
+);
+
+DECLARE
+	v_bono NUMBER;
+	v_total_pago_mes NUMBER;
+
+BEGIN
+	FOR x IN(
+	------BOLETA
+	SELECT v.rutvendedor, TO_CHAR(fecha,'MM/YYYY') AS "fecha", 'BOL' AS "documento", COUNT(numboleta) AS "cantidad",
+		ROUND(SUM(total/1.19)) AS "neto", ROUND(SUM(total/1.19)*0.19) AS "iva",
+		SUM(total) AS "total", comision, ROUND(SUM(total)*comision) AS "total comision",
+	
+	FROM boleta b
+	INNER JOIN vendedor v
+		ON b.rutvendedor=v.rutvendedor
+	GROUP BY v.rutvendedor, TO_CHAR(fecha,'MM/YYYY'), comision
+	UNION
+	----FACTURA
+	SELECT v.rutvendedor, TO_CHAR(fecha,'MM/YYYY'), 'FAC', COUNT(numfactura),
+		SUM(neto) AS "neto", SUM(iva) AS "iva",
+		SUM(total) AS "total", comision, ROUND(SUM(total)*comision) AS "total comision",
+	
+	FROM factura f
+	INNER JOIN vendedor v
+		ON f.rutvendedor=v.rutvendedor
+	GROUP BY v.rutvendedor, TO_CHAR(fecha,'MM/YYYY'), comision) LOOP
+
+	---------BONO
+	IF x."total"<1000000 THEN
+		v_bono:=0;
+	ELSIF x."total" BETWEEN 100000 AND 200000 THEN
+		v_bono:=x."total"*0.10;
+	ELSIF x."total" BETWEEN 200001 AND 300000 THEN
+		v_bono:=x."total"*0.15;
+	ELSIF x."total" BETWEEN 300001 AND 400000 THEN
+		v_bono:=x."total"*0.20;
+	ELSE
+		v_bono:=x."total"*0.25;
+	END IF;
+
+	---------PAGO MES
+	v_total_pago_mes:=x."total comision"+v_bono;
+
+	------INSERT
+
+	INSERT INTO resumen_ventas_vendedor VALUES(x.rutvendedor, x."fecha", x."documento", x."cantidad", x."neto", x."iva", x."total", x.comision, x."total_comision", v_bono, v_total_pago_mes);
+	
+	END LOOP;
+
+END;
+
+-------EJ4
+
+DECLARE
+	v_sueldo minimo NUMBER:=276000;
+	v_total_boleta NUMBER;
+	v_total_factura NUMBER;
+	v_total NUMBER;
+	v_monto_extra NUMBER;
+BEGIN
+	FOR x IN(SELECT rutvendedor, sueldo_base FROM vendedor)LOOP
+
+		IF x.sueldo_base<v_sueldo minimo THEN
+			UPDATE vendedor 
+			SET sueldo_base:=v_sueldo minimo
+			WHERE rutvendedor=x.rutvendedor;
+		ELSE 
+		    UPDATE vendedor
+		    SET sueldo_base=sueldo_base*1.02
+		    WHERE rutvendedor=x.rutvendedor;
+		END IF;
+
+------------BOLETA
+		SELECT SUM(total)
+		INTO v_total_boleta
+		FROM boleta
+		WHERE rutvendedor=x.rutvendedor
+		GROUP BY rutvendedor;
+----------FACTURA
+		SELECT SUM(total)
+		INTO v_total_factura
+		FROM factura
+		WHERE rutvendedor=x.rutvendedor
+		GROUP BY rutvendedor;
+
+		v_total:=v_total_boleta+v_total_factura;
+
+---------ESTRUCTURA DE CONTROL
+
+		v_monto_extra:= CASE
+				 WHEN v_total<100000 THEN v_total*0.01
+				 WHEN v_total>=100000 AND v_total<300000 THEN v_total*0.02
+				 WHEN v_total>=300000 AND v_total<500000 THEN v_total*0.03
+				 WHEN v_total>=500000 AND v_total<800000 THEN v_total*0.04
+				 ELSE 0
+			      END;
+
+---------UPDATE
+
+		UPDATE vendedor
+		SET sueldo_base=sueldo_base+v_monto_extra
+		WHERE rutvendedor=x.rutvendedor;
+
+
+	END LOOP;
+
+END;

@@ -1,0 +1,103 @@
+-------CASO 1
+SELECT NRO_PATENTE NRO PATENTE,
+       UPPER(TCAM.NOMBRE_TIPO_CAMION) AS "TIPO CAMION",
+       UPPER(M.NOMBRE_MARCA) AS "MARCA",
+       ANIO AS "AÑO DE FABRICACION",
+       LPAD(TO_CHAR(VALOR_ARRIENDO_DIA, '$999G999'),14) AS "VALOR ARRIENDO POR DIA",
+       NVL(TO_CHAR(VALOR_GARANTIA_DIA, '$999G999G999'),'NO SE COBRA GARANTIA') AS "VALOR GARANTIA POR DIA",
+       CASE
+          WHEN LPAD(TO_CHAR(CAM.VALOR_ARRIENDO_DIA+CAM.VALOR_GARANTIA_DIA, '$999G999'),11) IS NULL THEN LPAD(TO_CHAR(VALOR_ARRIENDO_DIA, '$999G999'),11)
+          ELSE LPAD(TO_CHAR(CAM.VALOR_ARRIENDO_DIA+CAM.VALOR_GARANTIA_DIA, '$999G999'),11)
+          END AS "VALOR TOTAL DIA",
+       INITCAP(EMP.PNOMBRE_EMP ||' '|| EMP.APPATERNO_EMP ||' '|| EMP.APMATERNO_EMP) AS "NOMBRE ENCARGADO",
+       EMP.CELULAR_EMP AS "CELULAR ENCARGADO"
+FROM CAMION CAM
+INNER JOIN TIPO_CAMION TCAM
+     ON CAM.ID_TIPO_CAMION=TCAM.ID_TIPO_CAMION
+INNER JOIN MARCA M
+     ON CAM.ID_MARCA=M.ID_MARCA
+INNER JOIN EMPLEADO EMP
+     ON CAM.NUMRUN_EMP=EMP.NUMRUN_EMP
+ORDER BY "TIPO CAMION", "VALOR GARANTIA POR DIA" ASC, "NRO PATENTE" ASC;
+
+--------CASO 2
+CREATE OR REPLACE VIEW V_BONIF_ARRIENDOS_ANUAL AS
+SELECT TO_CHAR(emp.numrun_emp,'99G999G999')  '-'  dvrun_emp "RUN EMPLEADO",
+       INITCAP(pnombre_emp) ||  ' ' || INITCAP(snombre_emp) || ' ' || INITCAP(appaterno_emp) || ' ' || INITCAP(apmaterno_emp) "NOMBRE EMPLEADO",
+       LPAD(TRIM(TO_CHAR(sueldo_base,'$99G999G999')),11) "SUELDO BASE", ROUND((sysdate-fecha_contrato)/365) "AÑOS TRABAJADOS", 
+       COUNT(arac.total_veces_arrendado) "TOTAL ARRIENDOS ANUAL",
+       LPAD(TRIM(TO_CHAR(ROUND(emp.sueldo_base*(count(arac.total_veces_arrendado)/100)),'$999G999')),12) "BONIFICACION DE ARRIENDO"
+FROM empleado emp
+    INNER JOIN camion cam
+         ON cam.numrun_emp=emp.numrun_emp
+    INNER JOIN hist_arriendo_anual_camion arac
+         ON arac.nro_patente=cam.nro_patente
+    INNER JOIN arriendo_camion acam
+         ON acam.nro_patente = cam.nro_patente
+WHERE TO_CHAR(acam.fecha_ini_arriendo,'MM/YYYY')=TO_CHAR(ADD_MONTHS(sysdate,-3),'MM/YYYY')
+GROUP BY emp.numrun_emp,dvrun_emp,pnombre_emp,snombre_emp,appaterno_emp,apmaterno_emp,sueldo_base,sysdate,fecha_contrato,arac.total_veces_arrendado
+HAVING COUNT(arac.total_veces_arrendado)>(SELECT AVG(TOTAL_veces_arrendado)
+FROM hist_arriendo_anual_camion)
+WITH READ ONLY;
+
+
+--------CASO 3
+Cuál es el problema que se debe resolver: Truck rental todos los años en enero define los precios de la lista de arriendo diario y garantia, para efectuar esto el area de arriendos todos los meses debe crear un informe manual detallado de cada camion que se arrendo en el mes, con este informe se hace un catastro y segun ciertas condiciones se rebajan los precios de los camiones.
+El problema es la inscripcion manual de los datos, se nos solicita que sea menos tedioso y que sea un proceso que se haga automaticamente para evitar la manipulacion de datos.
+
+Cuál es la información significativa que necesita para resolver el problema: 
+  -Este proceso se ejecutara el ultimo dia habil de diciembre(Proceso ANUAL)
+  -Datos necesarios: año de fabricación del camión, modelo del camión, tipo de camión, capacidad, valores referenciales de las otras empresas del rubro y demanda por arriendo que tuvo el camión durante el año anterior
+  -La información que se requiere debe quedar almacenada en la tabla HIST_ARRIENDO_ANUAL_CAMION y ordenada por número de patente. La columna ANNO_PROCESO almacena el año en que se ejecutó el proceso.
+  -Posterior a la generación de la información, se debe rebajar el valor del arriendo por día y la garantía en un 22,5% de los camiones que en el año fueron arrendados menos de 4 veces en el año de proceso. Es decir, la actualización también debe ser efectuada en forma paramétrica.
+  -Para ello, el área de arriendos, todos lo meses, debe generar un informe detallado por cada camión que se arrendó en ese mes. Así, en el mes de enero se realiza un catastro de toda esta información y a partir de ello, si el camión se arrendó menos de cuatro veces en el año, entonces el valor del arriendo por día y el valor de la garantía de ese camión se rebaja en un 22,5%
+
+Cuál es el propósito de la solución que se requiere: Agilizar el proceso de generar los informes , para evitar la manipulacion de informacion, para que sea mas eficaz la gestion de Truck Rental y obtener las rebajas correspondientes a los camiones.
+
+La solución que se requiere, en qué va a mejorar el negocio: La solucion va a mejorar la rapidez del proceso, menos tedioso. Pudiendo recopilar datos rapidamente sin confusion de estos y modificacion, haciendo mas eficiente y rapido los descuentos.
+
+Solucion 1.- La primera solucion consiste en que se actualizaran los datos de arriendo, segun la cantidad de veces que se arrienda el camion si esta llega tener 4 o mas arriendos en el año su valor de arriendo por dia y valor de su garantia se le aplicara un descuento de 22,5%
+Solucion 2.- La segunda solucion consiste en aplicar una resta de las tablas, para aislar solo las tablas con los datos de los camiones que se han arrendado mas de 4 veces y a estas poder aplicarle el descuento de 22,5%, esto se cumple segun el año que se haga la consulta.
+
+De las soluciones planteadas, cuál es la que mejor soluciona el requerimiento. ¿Por qué?: La mejor solucion planteada es la primera, ya que es un proceso mas corto y menos tedioso, actualiza automaticamente el sistema los precios de los camiones con el precio de las garantias, haciendo un mejor trabajo y mas eficiente, ademas de que se requieren menos lineas de codigo.
+
+----- CASO 4
+------------TABLESPACE
+CREATE USER USR_CONSULTOR IDENTIFIED BY consulta123
+DEFAULT TABLESPACE "USERS"
+TEMPORARY TABLESPACE "TEMP";
+----------PARTE 1
+--------------sinonimos publicos
+CREATE OR REPLACE SYNONYM SYN_ARRCAM FOR ARRIENDO_CAMION;
+CREATE PUBLIC SYNONYM SYN_ARRCAM
+FOR ARRIENDO_CAMION;
+
+CREATE OR REPLACE SYNONYM SYN_HAAC FOR HIST_ARRIENDO_ANUAL_CAMION; 
+CREATE PUBLIC SYNONYM SYN_HAAC
+FOR HIST_ARRIENDO_ANUAL_CAMION;
+---------sinonimos privados
+CREATE OR REPLACE SYNONYM SYN_BONARRAN FOR V_BONIF_ARRIENDOS_ANUAL;
+
+------------PARTE 2
+-------creación roles
+CREATE ROLE ROL_CONSULTOR;
+GRANT SELECT ON EMPLEADO TO ROL_CONSULTOR;
+GRANT SELECT ON CAMION TO ROL_CONSULTOR;
+GRANT SELECT ON ARRIENDO_CAMION TO ROL_CONSULTOR;
+
+CREATE ROLE ROL_PROCESOS;
+GRANT SELECT, INSERT, UPDATE ON ARRIENDO_CAMION TO ROL_PROCESOS;
+GRANT SELECT, INSERT, UPDATE ON HIST_ARRIENDO_ANUAL_CAMION TO ROL_PROCESOS;
+
+-----------PARTE 3
+-------creacion usuarios
+CREATE USER USR_CONSULTOR IDENTIFIED BY cc1311;
+GRANT CONNECT, CREATE VIEW TO USR_CONSULTOR; 
+GRANT SELECT ON V_BONIF_ARRIENDOS_ANUAL TO USR_CONSULTOR; 
+GRANT ROL_CONSULTOR TO USR_CONSULTOR; 
+
+CREATE USER USR_PROCESOS IDENTIFIED BY pp1311; 
+GRANT CONNECT, CREATE VIEW, CREATE MATERIALIZED VIEW TO USR_PROCESOS;
+GRANT SELECT, UPDATE ON MONTO_MULTAS TO USR_PROCESOS; 
+GRANT ROL_CONSULTOR, ROL_PROCESOS, RESOURCE TO USR_PROCESOS;
+

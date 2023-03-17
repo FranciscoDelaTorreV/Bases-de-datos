@@ -1,0 +1,39 @@
+------------EJERCICIO 1
+SELECT SUBSTR(A.RUTPROF,1,length(A.rutprof)-1)|| '-' ||SUBSTR(A.rutprof,-1) AS "RUN PROFESIONAL",
+idempresa as "EMPRESA",
+LPAD(TRIM(to_char(honorario,'L99G999G999')),10) as "HONORARIO",
+to_char(inicio,'day DD/MM/YYYY') as "INICIO ASESORIA",
+to_char(fin,'DD/MM/YYYY') as "FIN ASESORIA"
+FROM asesoria A
+WHERE fin='30/07/2017'
+ORDER BY 2;
+
+------------ EJERCICIO 2
+SELECT SUBSTR(A.RUTPROF,1,length(A.rutprof)-1)|| '-' ||SUBSTR(A.rutprof,-1) AS "RUN PROFESIONAL",
+idempresa as "EMPRESA",
+LPAD(TRIM(to_char(honorario,'L99G999G999')),10) AS "HONORARIO",
+to_char(inicio,'day DD/MM/YYYY') AS "INICIO ASESORIA",
+to_char(fin,'DD/MM/YYYY') AS "FIN ASESORIA"
+FROM asesoria A
+WHERE inicio='02/08/2017'
+ORDER BY 2;
+
+-------------EJERCICIO 3
+SELECT SUBSTR(A.RUTPROF,1,length(A.rutprof)-1)|| '-' ||SUBSTR(A.rutprof,-1) AS "RUN PROFESIONAL",
+idempresa AS "EMPRESA",
+LPAD(TRIM(to_char(honorario,'L99G999G999')),10) AS "HONORARIO",
+to_char(inicio,'day DD/MM/YYYY') AS "INICIO ASESORIA",
+to_char(fin,'DD/MM/YYYY') AS "FIN ASESORIA"
+FROM asesoria A
+WHERE fin BETWEEN '02/08/2017' AND '06/08/2017'
+ORDER BY fin ASC;
+
+------------EJERCICIO 4
+SELECT SUBSTR(A.RUTPROF,1,length(A.rutprof)-1)|| '-' ||SUBSTR(A.rutprof,-1) AS "RUN PROFESIONAL",
+idempresa AS "EMPRESA",
+LPAD(TRIM(to_char(honorario,'L99G999G999')),10) AS "HONORARIO",
+to_char(inicio,'day DD/MM/YYYY') AS "INICIO ASESORIA",
+to_char(fin,'DD/MM/YYYY') AS "FIN ASESORIA"
+FROM asesoria A
+WHERE fin BETWEEN '24/07/2017' AND '02/08/2017'
+ORDER BY 2;
